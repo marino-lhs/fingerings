@@ -1,0 +1,512 @@
+<title>Fingering Snippets</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&display=swap">
+<style>
+/* Layout: one centered work column — header, staff card with fingering blanks, fingering keypad, actions */
+:root {
+  --bg: #eef0f2;
+  --paper: #ffffff;
+  --ink: #1b1d22;
+  --muted: #5d6470;
+  --line: #d5d9df;
+  --accent: #1f6f5c;
+  --accent-soft: #dcefe8;
+  --key: #262320;
+  --key-ink: #f3efe9;
+  --good: #2e8540;
+  --good-soft: #e1f2e4;
+  --bad: #c2412d;
+  --bad-soft: #fbe5e1;
+  --font-display: "Bricolage Grotesque", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121418; --paper: #1c1f25; --ink: #e8eaee; --muted: #9aa1ad; --line: #343943;
+    --accent: #5cc0a2; --accent-soft: #1d3a32; --key: #2c2a27; --key-ink: #f3efe9;
+    --good: #5fc172; --good-soft: #1c3322; --bad: #ef7a64; --bad-soft: #3d221d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121418; --paper: #1c1f25; --ink: #e8eaee; --muted: #9aa1ad; --line: #343943;
+  --accent: #5cc0a2; --accent-soft: #1d3a32; --key: #2c2a27; --key-ink: #f3efe9;
+  --good: #5fc172; --good-soft: #1c3322; --bad: #ef7a64; --bad-soft: #3d221d;
+  color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.meta b { color: var(--ink); }
+
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding-block: 8px; }
+.scroller { overflow-x: auto; }
+#stage { position: relative; margin: 0 auto; }
+#stage svg [fill]:not([fill="none"]) { fill: var(--ink); }
+#stage svg [stroke]:not([stroke="none"]) { stroke: var(--ink); }
+
+.slot {
+  position: absolute; top: 4px; width: 40px; height: 46px; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  background: transparent; border: 0; border-radius: 6px; cursor: pointer; color: var(--ink);
+  font: 700 1.25rem/1 var(--font-body); font-variant-numeric: tabular-nums;
+}
+.slot::after { content: ""; display: block; width: 30px; height: 2px; background: var(--muted); margin-top: 4px; border-radius: 1px; }
+.slot .val { min-height: 1.2em; display: block; }
+.slot:hover { background: var(--accent-soft); }
+.slot.active { background: var(--accent-soft); }
+.slot.active::after { background: var(--accent); height: 3px; }
+.slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.slot.good { background: var(--good-soft); color: var(--good); cursor: default; }
+.slot.good::after { background: var(--good); }
+.slot.bad { background: var(--bad-soft); color: var(--bad); cursor: default; }
+.slot.bad .val { text-decoration: line-through; text-decoration-thickness: 2px; }
+.slot.bad::after { background: var(--bad); }
+.fix { position: absolute; top: 52px; width: 40px; text-align: center; font: 700 0.95rem/1 var(--font-body); color: var(--good); pointer-events: none; }
+
+.hint { color: var(--muted); font-size: 0.95rem; margin: 0; }
+.hint kbd { font-family: var(--font-body); font-weight: 700; color: var(--ink); }
+
+.pad { display: grid; grid-template-columns: repeat(var(--cols, 8), minmax(0, 1fr)); gap: 8px; }
+.pad button {
+  min-height: 58px; border: 0; border-radius: 8px; background: var(--key); color: var(--key-ink);
+  font: 700 1.45rem/1 var(--font-body); cursor: pointer; font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.35);
+}
+.pad button:hover:not(:disabled) { filter: brightness(1.25); }
+.pad button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 -1px 0 rgba(0,0,0,.35); }
+.pad button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.pad button:disabled { opacity: .4; cursor: default; }
+.pad .lbl { display: block; font-size: 0.7rem; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; opacity: .7; margin-top: 4px; }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.btn {
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 8px;
+  padding: 11px 18px; font: 700 1rem var(--font-body); cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.btn:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+.result { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.result b { font-family: var(--font-display); font-size: 1.5rem; }
+.tally { color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  .pad { --cols: 4; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Fingering Snippets</h1>
+    <div class="meta"><b id="instName">Violin</b> · first position · D major</div>
+  </header>
+
+  <div class="card">
+    <div class="scroller"><div id="stage"></div></div>
+  </div>
+
+  <p class="hint">Pick a blank above a note, then choose the fingering. <kbd>↓</kbd> is low, <kbd>↑</kbd> is high. Arrow keys move between blanks.</p>
+
+  <div class="pad" id="pad"></div>
+
+  <div class="actions">
+    <button class="btn" id="clearBtn" type="button">Clear</button>
+    <span class="spacer"></span>
+    <span class="tally" id="tally"></span>
+    <span class="result" id="result" hidden></span>
+    <button class="btn primary" id="submitBtn" type="button" disabled>Submit</button>
+    <button class="btn primary" id="newBtn" type="button" hidden>New snippet</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
+<script>
+/* ---------- Instrument data ----------
+   Chart format matches the spreadsheet: Note,Fingering per line.
+   "0 or 4" means either answer is accepted. Add viola/cello/bass the same way. */
+const INSTRUMENTS = {
+  violin: {
+    name: "Violin",
+    clef: "treble",
+    chart: `G3,0
+G#/Ab3,↓1
+A3,1
+Bb3,↓2
+B3,↑2
+C4,3
+C#4,↑3
+D4,0 or 4
+Eb4,↓1
+E4,1
+F4,↓2
+F#4,↑2
+G4,3
+G#4,↑3
+A4,0 or 4
+Bb4,↓1
+B4,1
+C5,↓2
+C#5,↑2
+D5,3
+Eb5,↑3
+E5,0 or 4
+F5,↓1
+F#5,1
+G5,↓2
+G#5,↑2
+A5,3
+Bb5,↑3
+B5,4`
+  }
+};
+
+const OPTION_ORDER = ["0","↓1","1","↑1","↓2","2","↑2","↓3","3","↑3","↓4","4","↑4"];
+const PC = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+const ACC = { "": 0, "#": 1, "b": -1 };
+
+function parseChart(text) {
+  const map = new Map();
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const [name, fing] = line.split(",");
+    const m = name.trim().match(/^([A-G])([#b]?)(?:\/([A-G])([#b]?))?(\d)$/);
+    if (!m) continue;
+    const oct = +m[5];
+    const midi = 12 * (oct + 1) + PC[m[1]] + ACC[m[2]];
+    map.set(midi, fing.split(/\s*or\s*/).map(s => s.trim()));
+  }
+  return map;
+}
+
+/* ---------- Keys ---------- */
+const KEYS = {
+  C:  ["C","D","E","F","G","A","B"],
+  G:  ["G","A","B","C","D","E","F#"],
+  D:  ["D","E","F#","G","A","B","C#"],
+  A:  ["A","B","C#","D","E","F#","G#"],
+  F:  ["F","G","A","Bb","C","D","E"],
+  Bb: ["Bb","C","D","Eb","F","G","A"]
+};
+const FLAT_KEYS = new Set(["F","Bb"]);
+// Chromatic spellings follow the chart's own spellings.
+const CHROMA = { 1:"C#", 3:"Eb", 6:"F#", 8:"G#", 10:"Bb" };
+const NATURAL = { 0:"C", 2:"D", 4:"E", 5:"F", 7:"G", 9:"A", 11:"B" };
+
+function pcOf(name) { return (PC[name[0]] + ACC[name.slice(1)] + 12) % 12; }
+
+function spell(midi, key) {
+  const pc = midi % 12;
+  const scale = KEYS[key];
+  let name = scale.find(n => pcOf(n) === pc);
+  if (!name) {
+    if (NATURAL[pc] !== undefined) name = NATURAL[pc];
+    else if (pc === 8 && FLAT_KEYS.has(key)) name = "Ab";
+    else name = CHROMA[pc];
+  }
+  const letter = name[0], acc = name.slice(1);
+  // octave by letter (handles B#/Cb if ever used)
+  const oct = Math.floor((midi - PC[letter] - ACC[acc]) / 12) - 1;
+  return { letter, acc, oct };
+}
+
+/* ---------- Snippet generation ---------- */
+const rand = n => Math.floor(Math.random() * n);
+const pick = arr => arr[rand(arr.length)];
+
+function makeRhythm() {
+  const out = [];
+  let beat = 0;
+  while (beat < 4) {
+    const r = Math.random();
+    if (beat % 2 === 0 && r < 0.12) { out.push("h"); beat += 2; }
+    else if (r < 0.40) { out.push("8", "8"); beat += 1; }
+    else { out.push("q"); beat += 1; }
+  }
+  return out;
+}
+
+/* Level settings. Later levels can widen these. */
+const LEVEL = {
+  keys: ["D"],
+  chromatic: false,
+  // Focus notes: C and C# on the G string (C4 = 60, C#4 = 61 in the chart's numbering).
+  // At least every other snippet includes one of these when the key allows it.
+  focus: [60, 61]
+};
+
+const isOpenOr4 = a => a.includes("0") && a.includes("4");
+
+// Group repeated pitches into runs; a run counts as one note for the rule.
+function runsOf(notes) {
+  const runs = [];
+  notes.forEach(n => {
+    const last = runs[runs.length - 1];
+    if (last && last.midi === n.midi) last.notes.push(n);
+    else runs.push({ midi: n.midi, notes: [n] });
+  });
+  return runs;
+}
+
+// Open-or-4 rule:
+//   first or last note → open or 4 both accepted
+//   both neighbors lower → 4
+//   both higher, or one on each side → open
+function resolveOpenOr4(notes) {
+  const runs = runsOf(notes);
+  const last = runs.length - 1;
+  runs.forEach((r, i) => {
+    if (!isOpenOr4(r.notes[0].answers)) return;
+    let ans;
+    if (i === 0 || i === last) ans = ["0", "4"];
+    else ans = (runs[i - 1].midi < r.midi && runs[i + 1].midi < r.midi) ? ["4"] : ["0"];
+    r.notes.forEach(n => { n.answers = ans.slice(); });
+  });
+}
+
+function isValid(notes) { return true; }
+
+const hasFocus = s => s.notes.some(n => LEVEL.focus.includes(n.midi));
+
+function makeSnippet(inst, needFocus) {
+  let s;
+  for (let tries = 0; tries < 2000; tries++) {
+    s = drawSnippet(inst);
+    if (!isValid(s.notes)) continue;
+    if (!needFocus || hasFocus(s)) break;
+  }
+  resolveOpenOr4(s.notes);
+  return s;
+}
+
+let needFocus = true; // first snippet always has one
+
+function drawSnippet(inst) {
+  const chart = inst.answers;
+  const key = pick(LEVEL.keys);
+  const scalePcs = new Set(KEYS[key].map(pcOf));
+  const midis = [...chart.keys()].sort((a, b) => a - b);
+  const pool = midis.filter(m => scalePcs.has(m % 12));
+  // start near the middle of the range
+  let idx = Math.floor(pool.length * (0.3 + Math.random() * 0.4));
+  const steps = [-1, -1, 1, 1, -2, 2, -3, 3, -4, 4, 0];
+  let chromaticLeft = LEVEL.chromatic && Math.random() < 0.7 ? 1 + rand(2) : 0;
+
+  const measures = [makeRhythm(), makeRhythm()];
+  const notes = [];
+  measures.forEach((rhythm, mi) => {
+    rhythm.forEach(dur => {
+      const step = pick(steps);
+      // bounce off the ends of the range instead of sticking there
+      idx = (idx + step < 0 || idx + step >= pool.length) ? idx - step : idx + step;
+      idx = Math.max(0, Math.min(pool.length - 1, idx));
+      let midi = pool[idx];
+      if (chromaticLeft > 0 && Math.random() < 0.18) {
+        const options = [midi - 1, midi + 1].filter(m => chart.has(m) && !scalePcs.has(m % 12));
+        if (options.length) { midi = pick(options); chromaticLeft--; }
+      }
+      notes.push({ measure: mi, dur, midi, ...spell(midi, key), answers: chart.get(midi) });
+    });
+  });
+  // key-signature accidental per letter
+  const keyAcc = {};
+  KEYS[key].forEach(n => { if (n.length > 1) keyAcc[n[0]] = n.slice(1); });
+  // which notes need a printed accidental (carries through the measure by letter+octave)
+  [0, 1].forEach(mi => {
+    const state = {};
+    notes.filter(n => n.measure === mi).forEach(n => {
+      const id = n.letter + n.oct;
+      const current = id in state ? state[id] : (keyAcc[n.letter] || "");
+      n.show = n.acc !== current ? (n.acc || "n") : null;
+      state[id] = n.acc;
+    });
+  });
+  return { key, notes };
+}
+
+/* ---------- State ---------- */
+const inst = INSTRUMENTS.violin;
+inst.answers = parseChart(inst.chart);
+const OPTIONS = OPTION_ORDER.filter(o => [...inst.answers.values()].some(a => a.includes(o)));
+
+let snippet, picks, active, submitted;
+let tally = { right: 0, total: 0 };
+
+const stage = document.getElementById("stage");
+const pad = document.getElementById("pad");
+const submitBtn = document.getElementById("submitBtn");
+const newBtn = document.getElementById("newBtn");
+const clearBtn = document.getElementById("clearBtn");
+const resultEl = document.getElementById("result");
+const tallyEl = document.getElementById("tally");
+
+OPTIONS.forEach(o => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.id = "opt-" + OPTIONS.indexOf(o);
+  const lbl = o.startsWith("↓") ? "low" : o.startsWith("↑") ? "high" : o === "0" ? "open" : "";
+  b.innerHTML = `<span>${o}</span>${lbl ? `<span class="lbl">${lbl}</span>` : `<span class="lbl">&nbsp;</span>`}`;
+  b.setAttribute("aria-label", (lbl ? lbl + " " : "") + o.replace(/[↓↑]/, ""));
+  b.addEventListener("click", () => choose(o));
+  pad.appendChild(b);
+});
+
+function newSnippet() {
+  snippet = makeSnippet(inst, needFocus);
+  needFocus = !hasFocus(snippet);
+  picks = snippet.notes.map(() => null);
+  active = 0;
+  submitted = false;
+  resultEl.hidden = true;
+  newBtn.hidden = true;
+  submitBtn.hidden = false;
+  clearBtn.disabled = false;
+  render();
+}
+
+/* ---------- Rendering ---------- */
+const VF = Vex.Flow;
+
+function render() {
+  const avail = stage.parentElement.clientWidth;
+  const W = Math.max(avail, 620);
+  const H = 230;
+  stage.innerHTML = "";
+  stage.style.width = W + "px";
+  stage.style.height = H + "px";
+
+  const renderer = new VF.Renderer(stage, VF.Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const x0 = 10, y = 64;
+  const s1 = new VF.Stave(x0, y, 200);
+  s1.addClef(inst.clef).addKeySignature(snippet.key).addTimeSignature("4/4");
+  const modW = s1.getNoteStartX() - x0;
+  const area = (W - 2 * x0 - modW) / 2;
+  s1.setWidth(modW + area);
+  const s2 = new VF.Stave(x0 + modW + area, y, area);
+  s2.setEndBarType(VF.Barline.type.END);
+  s1.setContext(ctx).draw();
+  s2.setContext(ctx).draw();
+
+  const vfNotes = [];
+  [s1, s2].forEach((stave, mi) => {
+    const group = snippet.notes.filter(n => n.measure === mi);
+    const tick = group.map(n => {
+      const sn = new VF.StaveNote({ clef: inst.clef, keys: [`${n.letter.toLowerCase()}${n.acc}/${n.oct}`], duration: n.dur, auto_stem: true });
+      if (n.show) sn.addAccidental(0, new VF.Accidental(n.show));
+      return sn;
+    });
+    const beams = VF.Beam.generateBeams(tick);
+    const voice = new VF.Voice({ num_beats: 4, beat_value: 4 }).addTickables(tick);
+    new VF.Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    voice.draw(ctx, stave);
+    beams.forEach(b => b.setContext(ctx).draw());
+    vfNotes.push(...tick);
+  });
+
+  vfNotes.forEach((sn, i) => {
+    const cx = (sn.getNoteHeadBeginX() + sn.getNoteHeadEndX()) / 2;
+    const n = snippet.notes[i];
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "slot";
+    btn.id = "slot-" + i;
+    btn.style.left = (cx - 20) + "px";
+    btn.setAttribute("aria-label", `Fingering for note ${i + 1}`);
+    btn.innerHTML = `<span class="val">${picks[i] ?? ""}</span>`;
+    if (submitted) {
+      const ok = n.answers.includes(picks[i]);
+      btn.classList.add(ok ? "good" : "bad");
+      btn.disabled = true;
+      if (!ok) {
+        const fix = document.createElement("div");
+        fix.className = "fix";
+        fix.style.left = (cx - 20) + "px";
+        fix.textContent = n.answers.join("/");
+        stage.appendChild(fix);
+      }
+    } else {
+      if (i === active) btn.classList.add("active");
+      btn.addEventListener("click", () => { active = i; render(); focusActive(); });
+    }
+    stage.appendChild(btn);
+  });
+
+  // keep the fix labels clear of the staff by pushing the stave down when needed
+  updateControls();
+}
+
+function focusActive() {
+  const el = document.getElementById("slot-" + active);
+  if (el) el.focus({ preventScroll: false });
+}
+
+function updateControls() {
+  const done = picks.every(p => p !== null);
+  submitBtn.disabled = !done || submitted;
+  [...pad.children].forEach(b => b.disabled = submitted);
+  tallyEl.textContent = tally.total ? `Session: ${tally.right}/${tally.total}` : "";
+}
+
+/* ---------- Interaction ---------- */
+function choose(opt) {
+  if (submitted) return;
+  picks[active] = opt;
+  // advance to the next blank after this one, wrapping; stay if all filled
+  const n = picks.length;
+  for (let k = 1; k <= n; k++) {
+    const j = (active + k) % n;
+    if (picks[j] === null) { active = j; break; }
+  }
+  render();
+}
+
+function submit() {
+  if (submitted || picks.some(p => p === null)) return;
+  submitted = true;
+  const right = snippet.notes.filter((n, i) => n.answers.includes(picks[i])).length;
+  const total = snippet.notes.length;
+  tally.right += right; tally.total += total;
+  resultEl.innerHTML = `<b>${right}/${total}</b> correct`;
+  resultEl.hidden = false;
+  submitBtn.hidden = true;
+  newBtn.hidden = false;
+  clearBtn.disabled = true;
+  render();
+  newBtn.focus();
+}
+
+submitBtn.addEventListener("click", submit);
+newBtn.addEventListener("click", newSnippet);
+clearBtn.addEventListener("click", () => {
+  if (submitted) return;
+  picks = picks.map(() => null); active = 0; render();
+});
+
+document.addEventListener("keydown", e => {
+  if (submitted) { if (e.key === "Enter" && document.activeElement !== newBtn) newSnippet(); return; }
+  if (e.key === "ArrowRight") { active = Math.min(picks.length - 1, active + 1); render(); focusActive(); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { active = Math.max(0, active - 1); render(); focusActive(); e.preventDefault(); }
+  else if (e.key === "Backspace" || e.key === "Delete") { picks[active] = null; render(); focusActive(); e.preventDefault(); }
+});
+
+let rt;
+window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 120); });
+
+newSnippet();
+</script>
