@@ -1,5 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
 <title>Fingering Snippets</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&display=swap">
@@ -46,7 +56,15 @@ body {
 header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
 .meta { color: var(--muted); font-size: 0.95rem; }
-.meta b { color: var(--ink); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+.seg button {
+  border: 0; background: transparent; color: var(--ink); padding: 7px 14px; cursor: pointer;
+  font: 700 0.95rem var(--font-body);
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-checked="true"] { background: var(--accent); color: var(--paper); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding-block: 8px; }
 .scroller { overflow-x: auto; }
@@ -102,23 +120,41 @@ h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); ma
 .result b { font-family: var(--font-display); font-size: 1.5rem; }
 .tally { color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 
+.slot.hl { outline: 2px solid var(--bad); outline-offset: 1px; }
+.why { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+.why h2 { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 8px; }
+.why ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.why li { padding-block: 10px; border-top: 1px solid var(--line); }
+.why li:first-child { border-top: 0; padding-top: 2px; }
+.why-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.why-num { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.why-pick { color: var(--muted); font-size: 0.92rem; }
+.why-pick s { color: var(--bad); text-decoration-thickness: 2px; }
+.why-pick b { color: var(--good); }
+.why p { margin: 4px 0 0; max-width: 65ch; line-height: 1.45; }
+
 @media (max-width: 560px) {
-  .pad { --cols: 4; }
+  .pad { --cols: var(--cols-sm, 4); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header>
     <h1>Fingering Snippets</h1>
-    <div class="meta"><b id="instName">Violin</b> · first position · D major</div>
+    <div class="meta">
+      <div class="seg" id="instPick" role="radiogroup" aria-label="Instrument"></div>
+      <div class="seg" id="keyPick" role="radiogroup" aria-label="Key"></div>
+      <span>First position</span>
+    </div>
   </header>
 
   <div class="card">
     <div class="scroller"><div id="stage"></div></div>
   </div>
 
-  <p class="hint">Pick a blank above a note, then choose the fingering. <kbd>↓</kbd> is low, <kbd>↑</kbd> is high. Arrow keys move between blanks.</p>
+  <p class="hint">Pick a blank above a note, then choose the fingering. <span id="hintKey"></span> Arrow keys move between blanks.</p>
 
   <div class="pad" id="pad"></div>
 
@@ -130,17 +166,25 @@ h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); ma
     <button class="btn primary" id="submitBtn" type="button" disabled>Submit</button>
     <button class="btn primary" id="newBtn" type="button" hidden>New snippet</button>
   </div>
+
+  <section class="why" id="why" hidden aria-live="polite"></section>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
 <script>
 /* ---------- Instrument data ----------
-   Chart format matches the spreadsheet: Note,Fingering per line.
-   "0 or 4" means either answer is accepted. Add viola/cello/bass the same way. */
+   Chart format matches the spreadsheet tabs: Note,Fingering per line.
+   "A or B" means either answer is accepted. A blank fingering means the note is never used.
+   options = the answer buttons, in order. labels = small caption under a button.
+   focus = MIDI numbers to feature in at least every other snippet (empty = none). */
 const INSTRUMENTS = {
   violin: {
     name: "Violin",
     clef: "treble",
+    options: ["0","↓1","1","↓2","↑2","3","↑3","4"],
+    labels: { "0": "open", "↓1": "low", "↓2": "low", "↑2": "high", "↑3": "high" },
+    hint: "<kbd>↓</kbd> is low, <kbd>↑</kbd> is high.",
+    focus: [60, 61], // C4, C#4 on the G string
     chart: `G3,0
 G#/Ab3,↓1
 A3,1
@@ -170,10 +214,81 @@ G#5,↑2
 A5,3
 Bb5,↑3
 B5,4`
+  },
+  viola: {
+    name: "Viola",
+    clef: "alto",
+    options: ["0","↓1","1","↓2","↑2","3","↑3","4"],
+    labels: { "0": "open", "↓1": "low", "↓2": "low", "↑2": "high", "↑3": "high" },
+    hint: "<kbd>↓</kbd> is low, <kbd>↑</kbd> is high.",
+    focus: [53, 54, 60, 61], // F/F#3 on the C string, C/C#4 on the G string
+    chart: `C3,0
+C#3,↓1
+D3,1
+Eb3,↓2
+E3,↑2
+F3,3
+F#3,↑3
+G3,0 or 4
+G#/Ab3,↓1
+A3,1
+Bb3,↓2
+B3,↑2
+C4,3
+C#4,↑3
+D4,0 or 4
+Eb4,↓1
+E4,1
+F4,↓2
+F#4,↑2
+G4,3
+G#4,↑3
+A4,0 or 4
+Bb4,↓1
+B4,1
+C5,↓2
+C#5,↑2
+D5,3
+Eb5,↑3
+E5,4`
+  },
+  cello: {
+    name: "Cello",
+    clef: "bass",
+    options: ["0","1","2","x2","3","4","x4"],
+    labels: { "0": "open", "x2": "ext", "x4": "ext" },
+    hint: "<kbd>x</kbd> is an extension.",
+    focus: [],
+    chart: `C2,0
+C#2,
+D2,1
+Eb2,2
+E2,3 or x2
+F2,4
+F#2,4 or x4
+G2,0
+G#2,
+A2,1
+Bb2,2
+B2,3 or x2
+C3,4
+C#3,4 or x4
+D3,0
+Eb3,
+E3,1
+F3,2
+F#3,3 or x2
+G3,4
+G#/Ab3,4 or x4
+A3,0
+Bb3,
+B3,1
+C4,2
+C#4,3 or x2
+D4,4
+D#4,4 or x4`
   }
 };
-
-const OPTION_ORDER = ["0","↓1","1","↑1","↓2","2","↑2","↓3","3","↑3","↓4","4","↑4"];
 const PC = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
 const ACC = { "": 0, "#": 1, "b": -1 };
 
@@ -182,9 +297,9 @@ function parseChart(text) {
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
-    const [name, fing] = line.split(",");
+    const [name, fing = ""] = line.split(",");
     const m = name.trim().match(/^([A-G])([#b]?)(?:\/([A-G])([#b]?))?(\d)$/);
-    if (!m) continue;
+    if (!m || !fing.trim()) continue;
     const oct = +m[5];
     const midi = 12 * (oct + 1) + PC[m[1]] + ACC[m[2]];
     map.set(midi, fing.split(/\s*or\s*/).map(s => s.trim()));
@@ -242,10 +357,7 @@ function makeRhythm() {
 /* Level settings. Later levels can widen these. */
 const LEVEL = {
   keys: ["D"],
-  chromatic: false,
-  // Focus notes: C and C# on the G string (C4 = 60, C#4 = 61 in the chart's numbering).
-  // At least every other snippet includes one of these when the key allows it.
-  focus: [60, 61]
+  chromatic: false
 };
 
 const isOpenOr4 = a => a.includes("0") && a.includes("4");
@@ -271,24 +383,51 @@ function resolveOpenOr4(notes) {
   runs.forEach((r, i) => {
     if (!isOpenOr4(r.notes[0].answers)) return;
     let ans;
+    let reason = null;
     if (i === 0 || i === last) ans = ["0", "4"];
-    else ans = (runs[i - 1].midi < r.midi && runs[i + 1].midi < r.midi) ? ["4"] : ["0"];
-    r.notes.forEach(n => { n.answers = ans.slice(); });
+    else {
+      const prev = runs[i - 1].midi, next = runs[i + 1].midi;
+      if (prev < r.midi && next < r.midi) { ans = ["4"]; reason = { type: "below", prev, next }; }
+      else if (prev > r.midi && next > r.midi) { ans = ["0"]; reason = { type: "above", prev, next }; }
+      else { ans = ["0"]; reason = { type: "through", prev, next }; }
+    }
+    r.notes.forEach(n => { n.answers = ans.slice(); n.reason = reason; });
+  });
+}
+
+// Low-1 rule: a note normally played with 1 that comes right after a low-1 note
+// is played with low 2, on the same string or another string.
+//   C#3 D3 C#3 → ↓1 ↓2 ↓1    C#3 A3 → ↓1 ↓2    D3 C#3 D3 → 1 ↓1 ↓2
+// A repeated pitch counts as one note.
+function resolveLow1(notes) {
+  const runs = runsOf(notes);
+  runs.forEach((r, i) => {
+    if (i === 0) return;
+    const prev = runs[i - 1].notes[0].answers;
+    const cur = r.notes[0].answers;
+    if (prev.length === 1 && prev[0] === "↓1" && cur.length === 1 && cur[0] === "1") {
+      r.notes.forEach(n => { n.answers = ["↓2"]; n.reason = { type: "afterLow1", prev: runs[i - 1].midi }; });
+    }
   });
 }
 
 function isValid(notes) { return true; }
 
-const hasFocus = s => s.notes.some(n => LEVEL.focus.includes(n.midi));
+// At least every other snippet includes a focus note, when the instrument has any.
+// Only push for focus notes when the chosen keys contain at least one of them.
+const focusPossible = inst => inst.focus.some(m => LEVEL.keys.some(k => KEYS[k].some(n => pcOf(n) === m % 12)));
+const hasFocus = (inst, s) => s.notes.some(n => inst.focus.includes(n.midi));
 
 function makeSnippet(inst, needFocus) {
   let s;
+  const wantFocus = needFocus && focusPossible(inst);
   for (let tries = 0; tries < 2000; tries++) {
     s = drawSnippet(inst);
     if (!isValid(s.notes)) continue;
-    if (!needFocus || hasFocus(s)) break;
+    if (!wantFocus || hasFocus(inst, s)) break;
   }
   resolveOpenOr4(s.notes);
+  resolveLow1(s.notes);
   return s;
 }
 
@@ -338,9 +477,13 @@ function drawSnippet(inst) {
 }
 
 /* ---------- State ---------- */
-const inst = INSTRUMENTS.violin;
-inst.answers = parseChart(inst.chart);
-const OPTIONS = OPTION_ORDER.filter(o => [...inst.answers.values()].some(a => a.includes(o)));
+Object.values(INSTRUMENTS).forEach(i => {
+  i.answers = parseChart(i.chart);
+  i.opens = [...i.answers.entries()].filter(([, a]) => a.includes("0")).map(([m]) => m).sort((a, b) => a - b);
+});
+let instId = "violin";
+try { const saved = localStorage.getItem("fs-instrument"); if (INSTRUMENTS[saved]) instId = saved; } catch (e) {}
+let inst = INSTRUMENTS[instId];
 
 let snippet, picks, active, submitted;
 let tally = { right: 0, total: 0 };
@@ -351,26 +494,81 @@ const submitBtn = document.getElementById("submitBtn");
 const newBtn = document.getElementById("newBtn");
 const clearBtn = document.getElementById("clearBtn");
 const resultEl = document.getElementById("result");
+const whyEl = document.getElementById("why");
 const tallyEl = document.getElementById("tally");
 
-OPTIONS.forEach(o => {
+const instPick = document.getElementById("instPick");
+const hintKey = document.getElementById("hintKey");
+const keyPick = document.getElementById("keyPick");
+
+const KEY_CHOICES = { D: ["D"], G: ["G"], C: ["C"], Mix: ["D", "G", "C"] };
+let keyId = "D";
+try { const saved = localStorage.getItem("fs-key"); if (KEY_CHOICES[saved]) keyId = saved; } catch (e) {}
+
+Object.keys(KEY_CHOICES).forEach(id => {
   const b = document.createElement("button");
   b.type = "button";
-  b.id = "opt-" + OPTIONS.indexOf(o);
-  const lbl = o.startsWith("↓") ? "low" : o.startsWith("↑") ? "high" : o === "0" ? "open" : "";
-  b.innerHTML = `<span>${o}</span>${lbl ? `<span class="lbl">${lbl}</span>` : `<span class="lbl">&nbsp;</span>`}`;
-  b.setAttribute("aria-label", (lbl ? lbl + " " : "") + o.replace(/[↓↑]/, ""));
-  b.addEventListener("click", () => choose(o));
-  pad.appendChild(b);
+  b.id = "key-" + id;
+  b.setAttribute("role", "radio");
+  b.textContent = id === "Mix" ? "Mix" : id + " major";
+  b.addEventListener("click", () => { setKey(id); newSnippet(); });
+  keyPick.appendChild(b);
 });
+
+function setKey(id) {
+  keyId = id;
+  LEVEL.keys = KEY_CHOICES[id];
+  try { localStorage.setItem("fs-key", id); } catch (e) {}
+  [...keyPick.children].forEach(b => b.setAttribute("aria-checked", String(b.id === "key-" + id)));
+  needFocus = true;
+}
+
+Object.entries(INSTRUMENTS).forEach(([id, i]) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.id = "inst-" + id;
+  b.setAttribute("role", "radio");
+  b.textContent = i.name;
+  b.addEventListener("click", () => setInstrument(id));
+  instPick.appendChild(b);
+});
+
+function buildPad() {
+  pad.innerHTML = "";
+  pad.style.setProperty("--cols", inst.options.length);
+  pad.style.setProperty("--cols-sm", Math.ceil(inst.options.length / 2));
+  inst.options.forEach((o, k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = "opt-" + k;
+    const lbl = inst.labels[o] || "";
+    b.innerHTML = `<span>${o}</span><span class="lbl">${lbl || "&nbsp;"}</span>`;
+    b.setAttribute("aria-label", (lbl ? lbl + " " : "") + o.replace(/[↓↑x]/, ""));
+    b.addEventListener("click", () => choose(o));
+    pad.appendChild(b);
+  });
+}
+
+function setInstrument(id) {
+  instId = id;
+  inst = INSTRUMENTS[id];
+  try { localStorage.setItem("fs-instrument", id); } catch (e) {}
+  [...instPick.children].forEach(b => b.setAttribute("aria-checked", String(b.id === "inst-" + id)));
+  hintKey.innerHTML = inst.hint;
+  tally = { right: 0, total: 0 };
+  needFocus = true;
+  buildPad();
+  newSnippet();
+}
 
 function newSnippet() {
   snippet = makeSnippet(inst, needFocus);
-  needFocus = !hasFocus(snippet);
+  needFocus = !hasFocus(inst, snippet);
   picks = snippet.notes.map(() => null);
   active = 0;
   submitted = false;
   resultEl.hidden = true;
+  whyEl.hidden = true;
   newBtn.hidden = true;
   submitBtn.hidden = false;
   clearBtn.disabled = false;
@@ -476,6 +674,96 @@ function choose(opt) {
   render();
 }
 
+/* ---------- Explanations ---------- */
+const SYM = { "#": "♯", "b": "♭", "": "" };
+
+function nameOf(midi, key) {
+  const s = spell(midi, key);
+  let nm = s.letter + SYM[s.acc];
+  // say "natural" when the key signature would otherwise change this letter
+  if (!s.acc && KEYS[key].some(k => k[0] === s.letter && k.length > 1)) nm += " natural";
+  return nm;
+}
+
+// Index into inst.opens of the string a note is played on.
+function stringOf(midi, answers) {
+  const opens = inst.opens;
+  let k = opens.filter(o => o <= midi).length - 1;
+  if (opens.includes(midi) && !answers.includes("0") && k > 0) k--; // open note played as 4
+  return Math.max(0, k);
+}
+const stringName = k => spell(inst.opens[k], "C").letter;
+
+function fingerName(f) {
+  if (f === "0") return "open";
+  const n = f.slice(1);
+  if (f[0] === "↑") return `high ${n} (${f})`;
+  if (f[0] === "↓") return `low ${n} (${f})`;
+  if (f[0] === "x") return `extended ${n} (${f})`;
+  return f;
+}
+const cap = s => s[0].toUpperCase() + s.slice(1);
+
+// The pitch a fingering would give on string k, if the chart makes it unambiguous.
+function playsOn(k, f, key) {
+  const lo = inst.opens[k];
+  const hi = inst.opens[k + 1] ?? lo + 7;
+  const hits = [...inst.answers.entries()]
+    .filter(([m, a]) => m >= lo && m <= hi && a.includes(f))
+    .filter(([m]) => !(m === hi && f === "0") && !(m === lo && f !== "0"))
+    .map(([m]) => m);
+  return hits.length === 1 ? nameOf(hits[0], key) : null;
+}
+
+function explain(i) {
+  const n = snippet.notes[i], chosen = picks[i], key = snippet.key;
+  const nm = nameOf(n.midi, key);
+  const k = stringOf(n.midi, n.answers);
+  const parts = [];
+  const low1 = n.reason && n.reason.type === "afterLow1";
+  if (low1) {
+    const a = nameOf(n.reason.prev, key);
+    parts.push(`${nm} comes right after the low 1 on ${a}. Use low 2 (↓2) for ${nm}.`);
+  } else if (n.reason) {
+    const a = nameOf(n.reason.prev, key), b = nameOf(n.reason.next, key);
+    const lower = `the ${stringName(Math.max(0, k - (n.answers.includes("0") ? 1 : 0)))} string`;
+    if (n.reason.type === "below") parts.push(`${nm} comes between two lower notes, ${a} and ${b}. Use 4 on ${lower}.`);
+    else if (n.reason.type === "above") parts.push(`${nm} comes between two higher notes, ${a} and ${b}. Play it open.`);
+    else parts.push(`The line moves through ${nm}, from ${a} to ${b}. Play it open.`);
+  } else if (isOpenOr4(n.answers)) {
+    parts.push(`${nm} can be open, or 4 on the ${stringName(Math.max(0, k - 1))} string.`);
+  } else {
+    parts.push(`${nm} is ${n.answers.map(fingerName).join(" or ")} on the ${stringName(k)} string.`);
+  }
+  // what the student's choice would play instead
+  const openOr4Note = (n.reason && !low1) || isOpenOr4(n.answers);
+  if (!(openOr4Note && (chosen === "0" || chosen === "4")) && !(low1 && chosen === "1")) {
+    const sk = openOr4Note && n.answers.includes("0") ? Math.max(0, k - 1) : k;
+    const p = playsOn(sk, chosen, key);
+    if (p) parts.push(`${cap(fingerName(chosen))} on the ${stringName(sk)} string plays ${p}.`);
+  }
+  return { nm, text: parts.join(" ") };
+}
+
+function showWhy() {
+  const wrong = snippet.notes.map((n, i) => i).filter(i => !snippet.notes[i].answers.includes(picks[i]));
+  whyEl.innerHTML = "";
+  if (!wrong.length) { whyEl.hidden = true; return; }
+  const h = document.createElement("h2");
+  h.textContent = wrong.length === 1 ? "1 to fix" : `${wrong.length} to fix`;
+  const ol = document.createElement("ol");
+  wrong.forEach(i => {
+    const e = explain(i);
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="why-head"><span class="why-num">Note ${i + 1}</span> <b>${e.nm}</b> <span class="why-pick">you chose <s>${picks[i]}</s>, answer <b>${snippet.notes[i].answers.join(" or ")}</b></span></div><p>${e.text}</p>`;
+    li.addEventListener("mouseenter", () => document.getElementById("slot-" + i)?.classList.add("hl"));
+    li.addEventListener("mouseleave", () => document.getElementById("slot-" + i)?.classList.remove("hl"));
+    ol.appendChild(li);
+  });
+  whyEl.append(h, ol);
+  whyEl.hidden = false;
+}
+
 function submit() {
   if (submitted || picks.some(p => p === null)) return;
   submitted = true;
@@ -484,6 +772,7 @@ function submit() {
   tally.right += right; tally.total += total;
   resultEl.innerHTML = `<b>${right}/${total}</b> correct`;
   resultEl.hidden = false;
+  showWhy();
   submitBtn.hidden = true;
   newBtn.hidden = false;
   clearBtn.disabled = true;
@@ -508,5 +797,8 @@ document.addEventListener("keydown", e => {
 let rt;
 window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 120); });
 
-newSnippet();
+setKey(keyId);
+setInstrument(instId);
 </script>
+</body>
+</html>
