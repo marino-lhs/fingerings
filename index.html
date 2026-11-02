@@ -118,7 +118,6 @@ h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); ma
 .spacer { flex: 1; }
 .result { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .result b { font-family: var(--font-display); font-size: 1.5rem; }
-.tally { color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 
 .slot.hl { outline: 2px solid var(--bad); outline-offset: 1px; }
 .why { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
@@ -133,7 +132,38 @@ h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); ma
 .why-pick b { color: var(--good); }
 .why p { margin: 4px 0 0; max-width: 65ch; line-height: 1.45; }
 
+.session {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px;
+  border-top: 1px solid var(--line); padding-top: 14px;
+}
+.stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; }
+.stats div { display: flex; flex-direction: column; }
+.stats dt { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--font-display); font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+
+.report {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink);
+  padding: 20px; width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+}
+.report::backdrop { background: rgba(10, 12, 16, 0.55); }
+.report-card { display: flex; flex-direction: column; gap: 12px; }
+.report-card h2 { font-family: var(--font-display); font-size: 1.35rem; margin: 0; }
+.report-sub { color: var(--muted); font-size: 0.92rem; margin: 2px 0 0; }
+.report table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.report th, .report td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.report th { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+.report td.num, .report th.num { text-align: right; }
+.report-more { color: var(--muted); font-size: 0.88rem; margin: 0; }
+.report-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.report-totals div { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; }
+.report-totals dt { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.report-totals dd { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.report-note { margin: 14px 0 0; font-weight: 700; }
+.report-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.report-msg { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; }
+
 @media (max-width: 560px) {
+  .report-totals { grid-template-columns: 1fr; }
   .pad { --cols: var(--cols-sm, 4); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -161,14 +191,32 @@ h1 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.2rem); ma
   <div class="actions">
     <button class="btn" id="clearBtn" type="button">Clear</button>
     <span class="spacer"></span>
-    <span class="tally" id="tally"></span>
     <span class="result" id="result" hidden></span>
     <button class="btn primary" id="submitBtn" type="button" disabled>Submit</button>
     <button class="btn primary" id="newBtn" type="button" hidden>New snippet</button>
   </div>
 
   <section class="why" id="why" hidden aria-live="polite"></section>
+
+  <footer class="session" id="session">
+    <dl class="stats">
+      <div><dt>Snippets</dt><dd id="statSnips">0</dd></div>
+      <div><dt>Overall</dt><dd id="statOverall">0/0</dd></div>
+      <div><dt>Correct</dt><dd id="statPct">–</dd></div>
+    </dl>
+    <button class="btn" id="shareBtn" type="button" disabled>Share Score</button>
+  </footer>
 </div>
+
+<dialog class="report" id="report" aria-labelledby="reportTitle">
+  <div class="report-card" id="reportCard"></div>
+  <p class="report-note">Screenshot these results and send to your teacher.</p>
+  <div class="report-actions">
+    <button class="btn" id="closeReport" type="button">Close</button>
+    <button class="btn primary" id="saveImage" type="button">Save image</button>
+  </div>
+  <p class="report-msg" id="saveMsg" hidden></p>
+</dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/vexflow@3.0.9/releases/vexflow-min.js"></script>
 <script>
@@ -487,6 +535,7 @@ let inst = INSTRUMENTS[instId];
 
 let snippet, picks, active, submitted;
 let tally = { right: 0, total: 0 };
+let history = []; // one entry per submitted snippet
 
 const stage = document.getElementById("stage");
 const pad = document.getElementById("pad");
@@ -495,15 +544,20 @@ const newBtn = document.getElementById("newBtn");
 const clearBtn = document.getElementById("clearBtn");
 const resultEl = document.getElementById("result");
 const whyEl = document.getElementById("why");
-const tallyEl = document.getElementById("tally");
+const statSnips = document.getElementById("statSnips");
+const statOverall = document.getElementById("statOverall");
+const statPct = document.getElementById("statPct");
+const shareBtn = document.getElementById("shareBtn");
+const reportEl = document.getElementById("report");
+const reportCard = document.getElementById("reportCard");
+const saveMsg = document.getElementById("saveMsg");
 
 const instPick = document.getElementById("instPick");
 const hintKey = document.getElementById("hintKey");
 const keyPick = document.getElementById("keyPick");
 
 const KEY_CHOICES = { D: ["D"], G: ["G"], C: ["C"], Mix: ["D", "G", "C"] };
-let keyId = "D";
-try { const saved = localStorage.getItem("fs-key"); if (KEY_CHOICES[saved]) keyId = saved; } catch (e) {}
+let keyId = "Mix"; // every page load starts on Mix
 
 Object.keys(KEY_CHOICES).forEach(id => {
   const b = document.createElement("button");
@@ -518,7 +572,6 @@ Object.keys(KEY_CHOICES).forEach(id => {
 function setKey(id) {
   keyId = id;
   LEVEL.keys = KEY_CHOICES[id];
-  try { localStorage.setItem("fs-key", id); } catch (e) {}
   [...keyPick.children].forEach(b => b.setAttribute("aria-checked", String(b.id === "key-" + id)));
   needFocus = true;
 }
@@ -556,6 +609,7 @@ function setInstrument(id) {
   [...instPick.children].forEach(b => b.setAttribute("aria-checked", String(b.id === "inst-" + id)));
   hintKey.innerHTML = inst.hint;
   tally = { right: 0, total: 0 };
+  history = [];
   needFocus = true;
   buildPad();
   newSnippet();
@@ -658,7 +712,10 @@ function updateControls() {
   const done = picks.every(p => p !== null);
   submitBtn.disabled = !done || submitted;
   [...pad.children].forEach(b => b.disabled = submitted);
-  tallyEl.textContent = tally.total ? `Session: ${tally.right}/${tally.total}` : "";
+  statSnips.textContent = history.length;
+  statOverall.textContent = `${tally.right}/${tally.total}`;
+  statPct.textContent = tally.total ? pct(tally.right, tally.total) : "–";
+  shareBtn.disabled = history.length === 0;
 }
 
 /* ---------- Interaction ---------- */
@@ -770,6 +827,12 @@ function submit() {
   const right = snippet.notes.filter((n, i) => n.answers.includes(picks[i])).length;
   const total = snippet.notes.length;
   tally.right += right; tally.total += total;
+  const wrong = snippet.notes.filter((n, i) => !n.answers.includes(picks[i]));
+  // open-string error: an open-or-4 note where the student picked 0 for 4, or 4 for 0
+  const openErrors = snippet.notes.filter((n, i) =>
+    !n.answers.includes(picks[i]) && isOpenOr4(inst.answers.get(n.midi)) && (picks[i] === "0" || picks[i] === "4")
+  ).length;
+  history.push({ key: snippet.key, right, total, errors: wrong.length, openErrors });
   resultEl.innerHTML = `<b>${right}/${total}</b> correct`;
   resultEl.hidden = false;
   showWhy();
@@ -788,6 +851,7 @@ clearBtn.addEventListener("click", () => {
 });
 
 document.addEventListener("keydown", e => {
+  if (reportEl.open) return;
   if (submitted) { if (e.key === "Enter" && document.activeElement !== newBtn) newSnippet(); return; }
   if (e.key === "ArrowRight") { active = Math.min(picks.length - 1, active + 1); render(); focusActive(); e.preventDefault(); }
   else if (e.key === "ArrowLeft") { active = Math.max(0, active - 1); render(); focusActive(); e.preventDefault(); }
@@ -796,6 +860,125 @@ document.addEventListener("keydown", e => {
 
 let rt;
 window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 120); });
+
+/* ---------- Score report ---------- */
+const REPORT_ROWS = 10;
+const pct = (a, b) => Math.round((100 * a) / b) + "%";
+
+function reportData() {
+  const errors = history.reduce((t, h) => t + h.errors, 0);
+  const openErrors = history.reduce((t, h) => t + h.openErrors, 0);
+  const start = Math.max(0, history.length - REPORT_ROWS);
+  return {
+    instrument: inst.name,
+    when: new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
+    rows: history.slice(start).map((h, j) => ({ n: start + j + 1, ...h })),
+    hidden: start,
+    snippets: history.length,
+    overall: `${tally.right}/${tally.total}`,
+    percent: pct(tally.right, tally.total),
+    openPct: errors ? pct(openErrors, errors) : "No errors",
+    openDetail: errors ? `${openErrors} of ${errors} errors` : ""
+  };
+}
+
+function openReport() {
+  const d = reportData();
+  reportCard.innerHTML = `
+    <div>
+      <h2 id="reportTitle">Fingering Snippets score</h2>
+      <p class="report-sub">${d.instrument} · ${d.when}</p>
+    </div>
+    <table>
+      <thead><tr><th>Snippet</th><th>Key</th><th class="num">Score</th><th class="num">%</th></tr></thead>
+      <tbody>${d.rows.map(r => `<tr><td>${r.n}</td><td>${r.key} major</td><td class="num">${r.right}/${r.total}</td><td class="num">${pct(r.right, r.total)}</td></tr>`).join("")}</tbody>
+    </table>
+    ${d.hidden ? `<p class="report-more">Showing the last ${REPORT_ROWS} of ${d.snippets} snippets. Totals include all of them.</p>` : ""}
+    <dl class="report-totals">
+      <div><dt>Overall</dt><dd>${d.overall}</dd></div>
+      <div><dt>Correct</dt><dd>${d.percent}</dd></div>
+      <div><dt>Open-string errors</dt><dd>${d.openPct}</dd></div>
+    </dl>
+    ${d.openDetail ? `<p class="report-more">Open-string errors: chose 0 instead of 4, or 4 instead of 0. ${d.openDetail}.</p>` : ""}`;
+  saveMsg.hidden = true;
+  reportEl.showModal();
+}
+
+// Draws the report onto a canvas, so the image does not depend on the page theme.
+function reportCanvas(d) {
+  const W = 640, pad = 32, rowH = 34, scale = 2;
+  const H = 150 + rowH * (d.rows.length + 1) + (d.hidden ? 28 : 0) + 120 + (d.openDetail ? 26 : 0) - 10;
+  const c = document.createElement("canvas");
+  c.width = W * scale; c.height = H * scale;
+  const g = c.getContext("2d");
+  g.scale(scale, scale);
+  const ink = "#1b1d22", muted = "#5d6470", line = "#d5d9df", soft = "#dcefe8", accent = "#1f6f5c";
+  const disp = '700 26px "Bricolage Grotesque", "Atkinson Hyperlegible", system-ui, sans-serif';
+  const body = s => `${s}px "Atkinson Hyperlegible", system-ui, sans-serif`;
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
+  g.fillStyle = accent; g.fillRect(0, 0, W, 6);
+  let y = 54;
+  g.fillStyle = ink; g.font = disp; g.fillText("Fingering Snippets score", pad, y);
+  y += 28; g.fillStyle = muted; g.font = body(16); g.fillText(`${d.instrument} · ${d.when}`, pad, y);
+  y += 40;
+  const cols = [pad, pad + 120, W - pad - 130, W - pad];
+  const header = ["SNIPPET", "KEY", "SCORE", "%"];
+  g.font = body(12); g.fillStyle = muted;
+  header.forEach((h, k) => { g.textAlign = k >= 2 ? "right" : "left"; g.fillText(h, k === 2 ? cols[2] + 60 : cols[k], y); });
+  const rule = yy => { g.fillStyle = line; g.fillRect(pad, yy, W - 2 * pad, 1); };
+  rule(y + 10); y += 10;
+  g.font = body(17); 
+  d.rows.forEach(r => {
+    y += rowH; g.fillStyle = ink;
+    g.textAlign = "left"; g.fillText(String(r.n), cols[0], y - 10); g.fillText(`${r.key} major`, cols[1], y - 10);
+    g.textAlign = "right"; g.fillText(`${r.right}/${r.total}`, cols[2] + 60, y - 10); g.fillText(pct(r.right, r.total), cols[3], y - 10);
+    rule(y);
+  });
+  g.textAlign = "left";
+  if (d.hidden) { y += 26; g.fillStyle = muted; g.font = body(14); g.fillText(`Showing the last ${REPORT_ROWS} of ${d.snippets} snippets. Totals include all of them.`, pad, y); }
+  y += 22;
+  const boxW = (W - 2 * pad - 20) / 3;
+  [["OVERALL", d.overall], ["CORRECT", d.percent], ["OPEN-STRING ERRORS", d.openPct]].forEach(([k, v], j) => {
+    const x = pad + j * (boxW + 10);
+    g.fillStyle = soft; g.beginPath();
+    if (g.roundRect) g.roundRect(x, y, boxW, 80, 8); else g.rect(x, y, boxW, 80);
+    g.fill();
+    g.fillStyle = muted; g.font = body(11); g.fillText(k, x + 12, y + 24);
+    g.fillStyle = ink; g.font = v.length > 6 ? '700 20px "Bricolage Grotesque", system-ui, sans-serif' : disp; g.fillText(v, x + 12, y + 60);
+  });
+  y += 80;
+  if (d.openDetail) { y += 26; g.fillStyle = muted; g.font = body(14); g.fillText(`Open-string errors: chose 0 instead of 4, or 4 instead of 0. ${d.openDetail}.`, pad, y); }
+  return c;
+}
+
+async function saveImage() {
+  const d = reportData();
+  try { await document.fonts.ready; } catch (e) {}
+  const blob = await new Promise(r => reportCanvas(d).toBlob(r, "image/png"));
+  const name = `fingering-score-${d.instrument.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.png`;
+  const file = new File([blob], name, { type: "image/png" });
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  try {
+    if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Fingering Snippets score" });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  saveMsg.textContent = `Saved ${name}. If nothing downloaded, take a screenshot instead.`;
+  saveMsg.hidden = false;
+}
+
+shareBtn.addEventListener("click", openReport);
+document.getElementById("closeReport").addEventListener("click", () => reportEl.close());
+document.getElementById("saveImage").addEventListener("click", saveImage);
+reportEl.addEventListener("click", e => { if (e.target === reportEl) reportEl.close(); });
 
 setKey(keyId);
 setInstrument(instId);
